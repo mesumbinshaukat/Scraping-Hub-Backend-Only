@@ -18,7 +18,7 @@ Authorization: Bearer YOUR_API_KEY
 1. **For Vercel (Production)**: Set `MASTER_KEY` environment variable in Vercel Dashboard
 2. **For Local Development**: Run `node src/scripts/generate-key.js`
 
-**Current Master Key** (for testing): `b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6`
+**Current Master Key** (for testing): `5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec`
 
 ---
 
@@ -32,12 +32,12 @@ Authorization: Bearer YOUR_API_KEY
 
 **PowerShell Example**:
 ```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/health" -Headers @{Authorization="Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6"}
+Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/health" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
 ```
 
 **cURL Example**:
 ```bash
-curl -H "Authorization: Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6" \
+curl -H "Authorization: Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec" \
   https://scraping-hub-backend-only.vercel.app/api/health
 ```
 
@@ -62,12 +62,12 @@ curl -H "Authorization: Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0
 
 **PowerShell Example**:
 ```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/scrape?url=https://example.com" -Headers @{Authorization="Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6"}
+Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/scrape?url=https://example.com" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
 ```
 
 **cURL Example**:
 ```bash
-curl -H "Authorization: Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6" \
+curl -H "Authorization: Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec" \
   "https://scraping-hub-backend-only.vercel.app/api/scrape?url=https://example.com"
 ```
 
@@ -101,7 +101,7 @@ curl -H "Authorization: Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0
 
 **PowerShell Example**:
 ```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/rss?url=https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml" -Headers @{Authorization="Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6"}
+Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/rss?url=https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
 ```
 
 **Response**:
@@ -134,7 +134,7 @@ Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/rss?url
 
 **PowerShell Example**:
 ```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/sitemap?url=https://example.com/sitemap.xml" -Headers @{Authorization="Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6"}
+Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/sitemap?url=https://example.com/sitemap.xml" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
 ```
 
 **Response**:
@@ -166,7 +166,7 @@ Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/sitemap
 
 **PowerShell Example**:
 ```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/validate?url=https://example.com" -Headers @{Authorization="Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6"}
+Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/validate?url=https://example.com" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
 ```
 
 **Response**:
@@ -191,21 +191,26 @@ Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/validat
 
 **Parameters**:
 - `query` (required): Search query
+- `limit` (optional): Max results (default 50)
 
 **PowerShell Example**:
 ```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/news?query=technology" -Headers @{Authorization="Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6"}
+Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/news?query=technology" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
 ```
 
 **Response**:
 ```json
 {
   "success": true,
+  "type": "news",
+  "query": "technology news",
+  "count": 10,
   "data": {
     "results": [
       {
+        "url": "https://example.com/tech-news",
         "title": "Tech News Article",
-        "url": "https://example.com/tech-news"
+        "source": "fox_news"
       }
     ]
   }
@@ -225,18 +230,22 @@ Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/news?qu
 
 **PowerShell Example**:
 ```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/blog?query=web+development" -Headers @{Authorization="Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6"}
+Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/blog?query=web+development" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
 ```
 
 **Response**:
 ```json
 {
   "success": true,
+  "type": "blog",
+  "query": "web development blog",
+  "count": 10,
   "data": {
     "results": [
       {
+        "url": "https://example.com/blog-post",
         "title": "Web Development Blog Post",
-        "url": "https://example.com/blog-post"
+        "source": "medium_tech"
       }
     ]
   }
@@ -256,7 +265,7 @@ Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/blog?qu
 
 **PowerShell Example**:
 ```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/stats/daily" -Headers @{Authorization="Bearer b8f663d40a227d85a8f7339f37be196d23fa8ced1a6bd42c0e8319d29c80dcf6"}
+Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/stats/daily" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
 ```
 
 **Response**:

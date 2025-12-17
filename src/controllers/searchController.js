@@ -3,6 +3,33 @@ import Joi from 'joi';
 
 const schema = Joi.object({ query: Joi.string().required() });
 
+const buildSuggestions = (query) => {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const baseTokens = trimmed.split(/\s+/);
+    const variants = new Set();
+
+    // Encourage simpler one-word searches
+    if (baseTokens.length > 1) {
+        variants.add(baseTokens[0]);
+        variants.add(baseTokens.slice(0, 2).join(' '));
+    } else if (trimmed.length > 2) {
+        variants.add(trimmed.slice(0, 3));
+        if (trimmed.length > 5) {
+            variants.add(trimmed.slice(0, Math.ceil(trimmed.length / 2)));
+        }
+    }
+
+    // Remove trailing context words like "news"/"blog"
+    const withoutContext = trimmed.replace(/\b(news|blog)\b/gi, '').trim();
+    if (withoutContext && withoutContext !== trimmed) {
+        variants.add(withoutContext);
+    }
+
+    return Array.from(variants).filter(Boolean);
+};
+
 // Combined controller for search, news, and blog
 export const searchController = (type) => async (req, res, next) => {
     try {
@@ -33,15 +60,25 @@ export const searchController = (type) => async (req, res, next) => {
             return !isDuplicate;
         }).slice(0, 50); // Limit to 50
 
-        res.json({
-            success: true,
+        const responsePayload = {
+            success: uniqueResults.length > 0,
             type,
             query: modifiedQuery,
             count: uniqueResults.length,
             data: {
                 results: uniqueResults
             }
-        });
+        };
+
+        if (uniqueResults.length === 0) {
+            const suggestions = buildSuggestions(query);
+            responsePayload.message = `No ${type} results found for "${query}". Try a broader keyword.`;
+            if (suggestions.length) {
+                responsePayload.suggestions = suggestions;
+            }
+        }
+
+        res.status(uniqueResults.length ? 200 : 404).json(responsePayload);
 
     } catch (err) {
         next(err);
