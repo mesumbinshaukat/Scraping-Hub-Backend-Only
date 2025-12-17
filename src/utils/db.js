@@ -8,9 +8,11 @@ let SQL;
 export const initDb = async () => {
     if (db) return db;
 
-    // Initialize SQL.js
+    // Initialize SQL.js with CDN-hosted WASM (Vercel compatible)
     if (!SQL) {
-        SQL = await initSqlJs();
+        SQL = await initSqlJs({
+            locateFile: file => `https://sql.js.org/dist/${file}`
+        });
     }
 
     const dbPath = process.env.NODE_ENV === 'production' 
