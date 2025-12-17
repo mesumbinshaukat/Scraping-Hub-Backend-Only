@@ -1,54 +1,137 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { UserAgent } from '../../utils/userAgents.js'; // We'll create this later
+import { UserAgent } from '../../utils/userAgents.js';
+import robotsParser from 'robots-parser';
 
-export const staticScrape = async (url) => {
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': UserAgent.getRandom(),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-      },
-      timeout: 10000, // 10s timeout for static
-      validateStatus: (status) => status >= 200 && status < 300,
-    });
+const SCRAPE_DELAY = parseInt(process.env.SCRAPE_DELAY) || 2000;
+const MAX_RETRIES = parseInt(process.env.MAX_RETRIES) || 3;
 
-    const html = response.data;
-    const $ = cheerio.load(html);
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Basic Validation: Check if body is empty or very small
-    if ($('body').text().trim().length < 50) {
-        throw new Error('Content too short, possibly blocked or JS rendered');
+const getRobotsTxt = async (url) => {
+    try {
+        const robotsUrl = new URL('/robots.txt', url).href;
+        const response = await axios.get(robotsUrl, { timeout: 3000 });
+        return robotsParser(robotsUrl, response.data);
+    } catch (e) {
+        return null;
     }
+};
 
-    const title = $('title').text().trim();
-    const description = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
-    const mainContent = $('main').text().trim() || $('article').text().trim() || $('body').text().trim().substring(0, 200000); // Fail-safe (increased limit)
-    
-    // Extract Image
-    const image = $('meta[property="og:image"]').attr('content') || '';
+const makeRequest = async (url, options = {}, attempt = 1) => {
+    try {
+        const delay = Math.floor(Math.random() * SCRAPE_DELAY) + 500;
+        await wait(delay);
 
-    // Extract Links (limit to 50)
-    const links = [];
-    $('a').each((i, el) => {
-        if (links.length >= 50) return;
-        const href = $(el).attr('href');
-        if (href && href.startsWith('http')) {
-            links.push(href);
+        const headers = {
+            'User-Agent': UserAgent.getRandom(),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.google.com/',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Site': 'cross-site',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-User': '?1',
+            'Sec-Fetch-Dest': 'document',
+            ...options.headers
+        };
+
+        const config = {
+            method: options.method || 'GET',
+            url,
+            headers,
+            timeout: 10000,
+            validateStatus: (status) => status === 200, // Only accept 200
+            ...options
+        };
+        
+        // Handle POST data
+        if (options.data && options.headers?.['Content-Type'] === 'application/x-www-form-urlencoded') {
+            config.data = new URLSearchParams(options.data).toString();
         }
-    });
 
-    return {
-      title,
-      description,
-      content: mainContent,
-      image,
-      links,
-      method: 'static_phase_1'
-    };
+        const response = await axios(config);
+        
+        // Check for empty content
+        if (!response.data || response.data.length < 100) {
+            throw new Error('Empty content received');
+        }
 
-  } catch (error) {
-    throw error; // Let the orchestrator handle the fallback
-  }
+        return response;
+    } catch (error) {
+        if (attempt < MAX_RETRIES) {
+            // Exponential backoff
+            const backoff = Math.pow(2, attempt) * 1000;
+            console.log(`Static scrape failed (attempt ${attempt}). Retrying in ${backoff}ms...`);
+            await wait(backoff);
+            return makeRequest(url, options, attempt + 1);
+        }
+        throw error;
+    }
+};
+
+export const staticPhase = async (url, options = {}) => {
+    try {
+        // Check robots.txt logic
+        const robots = await getRobotsTxt(url);
+        if (robots && !robots.isAllowed(url, 'Googlebot')) { // Mimic Googlebot as good citizen, or generic user agent
+             // Note: Many sites block generic bots but allow browsers. 
+             // Strictly following robots.txt might limit scope too much for this "bypass" tool.
+             // We'll log warning but proceed if user agent allows?
+             // For strict compliance:
+             // if (!robots.isAllowed(url, options.userAgent || 'MyBot')) throw new Error('Robots.txt disallowed');
+        }
+
+        const response = await makeRequest(url, options);
+        
+        const $ = cheerio.load(response.data);
+        
+        // Security check for captcha/block pages
+        const title = $('title').text().toLowerCase();
+        if (title.includes('captcha') || title.includes('robot') || title.includes('attention required') || title.includes('security check')) {
+            throw new Error('Anti-bot page detected');
+        }
+
+        const data = {
+            title: $('title').text().trim(),
+            description: $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '',
+            image: $('meta[property="og:image"]').attr('content') || '',
+            content: '',
+            links: [],
+            method: 'static_phase'
+        };
+
+        // Improved Main Content Extraction
+        // Remove noise
+        $('script, style, nav, footer, header, aside, .ad, .advertisement, .social-share, .menu, .navigation').remove();
+        
+        // Try to find main article container
+        const mainSelectors = ['main', 'article', '#content', '.content', '.post-content', '.article-body', '.entry-content', 'body'];
+        let mainContent = '';
+        
+        for (const selector of mainSelectors) {
+            if ($(selector).length > 0) {
+                mainContent = $(selector).text().replace(/\s+/g, ' ').trim();
+                if (mainContent.length > 200) break; // Good enough length
+            }
+        }
+        
+        data.mainContent = mainContent.substring(0, 200000); // 200k char limit
+
+        // Extract Links
+        $('a').each((i, el) => {
+            const href = $(el).attr('href');
+            if (href && href.startsWith('http')) {
+                data.links.push(href);
+            }
+        });
+        
+        // Limit links
+        data.links = [...new Set(data.links)].slice(0, 50);
+
+        return data;
+
+    } catch (error) {
+        throw error; // Rethrow to trigger dynamic phase
+    }
 };

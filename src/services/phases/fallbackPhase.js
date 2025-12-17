@@ -1,29 +1,23 @@
 import { resourceManager } from '../resources.js';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
 import { UserAgent } from '../../utils/userAgents.js';
 
-export const fallbackScrape = async (url) => {
-    // Strategy: Search for the URL to find a cache or snippet, OR just try to check if it's an RSS feed 
-    // In this context, "fallback" means we failed to reach the site directly.
-    // So we search for "site:url" or just the URL in a search engine to see if we can find a description or title from SERP.
+export const fallbackPhase = async (url) => {
+    // Phase 3: Search for the URL to find a cache or snippet
+    // Logic: Search for the specific URL to see if it's indexed
     
     try {
-        const results = await resourceManager.search(url);
+        const results = await resourceManager.search(url, 'search');
         
-        // If we found results, it means the URL is indexed. 
-        // We can try to extract the snippet from the SERP if our parser supported it (currently just returns links)
-        // For this simple implementation, if we get links back, and one matches our URL, we might assume it exists.
-        
-        // Alternatively, use a "Web Archive" style fallback if available (not in free list specifically but useful)
-        // Or generic "News" search if it looks like an article.
-
-        // Simpler Fallback: return what we found about it
         if (results && results.length > 0) {
+            // Found it indexed
+            const match = results.find(r => r.url === url) || results[0];
+            
             return {
-                title: 'Available via Search',
-                description: 'Direct scrape failed, but found in search engines.',
-                content: `Found related links: ${results.join(', ')}`,
+                title: match.title || 'Available via Search',
+                description: `Direct scrape failed, but URL found in ${match.source}.`,
+                content: `Found in search index: ${match.url}`,
+                links: results.map(r => r.url),
+                mainContent: `This content was not directly scrapable, but was found in ${match.source}. Url: ${match.url}`,
                 method: 'fallback_phase_3_search'
             };
         }
