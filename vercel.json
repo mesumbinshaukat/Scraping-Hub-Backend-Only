@@ -1,0 +1,27 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "src/app.js",
+            "use": "@vercel/node"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "src/app.js"
+        }
+    ],
+    "functions": {
+        "src/app.js": {
+            "memory": 1024,
+            "maxDuration": 60
+        }
+    },
+    "crons": [
+        {
+            "path": "/api/cron/cleanup",
+            "schedule": "0 0 * * *"
+        }
+    ]
+}
