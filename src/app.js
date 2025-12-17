@@ -27,6 +27,7 @@ const logger = winston.createLogger({
 });
 
 // Middleware
+app.set('trust proxy', 1); // Trust first proxy (Vercel)
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
