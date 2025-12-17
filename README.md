@@ -10,7 +10,7 @@ A robust Express.js backend for web scraping, optimized for Vercel Serverless Fu
   3. Search Fallback (DuckDuckGo, etc.)
 - **APIs**: Scrape, RSS, Sitemap, Validate, News, Blog.
 - **Performance**: In-memory queuing, Rate limiting, User-Agent rotation.
-- **Stats**: Request logging to embedded SQLite (`scraping.db`).
+- **Stats**: Request logging to JSON files (`access_logs.json`, `api_keys.json`).
 - **Maintenance**: Automated cron cleanup.
 
 ## Security
