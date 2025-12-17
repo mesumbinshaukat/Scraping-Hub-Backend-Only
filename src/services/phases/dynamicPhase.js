@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-extra'; // enhanced
 import stealthPlugin from 'puppeteer-extra-plugin-stealth';
-import chromiumPack from '@sparticuz/chromium';
+import chromiumPack from '@sparticuz/chromium-min';
 import playwright from 'playwright-core';
 
 chromium.use(stealthPlugin());
@@ -18,29 +18,29 @@ export const dynamicPhase = async (url, options = {}) => {
 
     try {
         console.log(`Starting dynamic scrape for: ${url}`);
-        
+
         // Launch Browser - Vercel compatible
         const executablePath = await chromiumPack.executablePath();
-        
+
         // Local fallback if not on AWS Lambda/Vercel
         const launchOptions = {
             args: [...chromiumPack.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
             executablePath: executablePath || undefined,
             headless: chromiumPack.headless,
         };
-        
+
         // Use playwright-extra wrapper for stealth
         if (!executablePath) {
-             // Local development - use standard playwright
-             // Note: playwright-extra wraps the browser object
-             browser = await chromium.launch({ headless: true }); 
+            // Local development - use standard playwright
+            // Note: playwright-extra wraps the browser object
+            browser = await chromium.launch({ headless: true });
         } else {
-             // Vercel/Production
-             // We need to use playwright-core with the pack
-             // Note: Applying stealth to core is tricky, playwright-extra handles it if we pass the core engine?
-             // Actually, playwright-extra is a drop-in replacement. 
-             // We configure it to use the specific executable path.
-             browser = await chromium.launch(launchOptions);
+            // Vercel/Production
+            // We need to use playwright-core with the pack
+            // Note: Applying stealth to core is tricky, playwright-extra handles it if we pass the core engine?
+            // Actually, playwright-extra is a drop-in replacement. 
+            // We configure it to use the specific executable path.
+            browser = await chromium.launch(launchOptions);
         }
 
         context = await browser.newContext({
@@ -54,12 +54,12 @@ export const dynamicPhase = async (url, options = {}) => {
 
         // Navigate with timeouts
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        
+
         // Wait for body to be populated
         try {
             await page.waitForSelector('body', { timeout: 5000 });
             // Wait a bit for JS execution
-            await page.waitForTimeout(2000); 
+            await page.waitForTimeout(2000);
         } catch (e) {
             console.log('Timeout waiting for selector, proceeding anyway...');
         }

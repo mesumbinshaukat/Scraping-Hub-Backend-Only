@@ -1,35 +1,48 @@
 # Serverless Scraping Backend
 
-A robust Express.js backend for web scraping, optimized for Vercel Serverless Functions. Features multi-phase scraping, fallback strategies, and extensive resource integration.
+A robust Express.js backend for web scraping, optimized for Vercel Serverless Functions. Features multi-phase scraping, dynamic fallback strategies, and extensive resource integration.
 
 ## Features
 
 - **Multi-Phase Scraping**:
-  1. Static (Axios + Cheerio)
-  2. Dynamic (Playwright)
-  3. Search Fallback (DuckDuckGo, etc.)
-- **APIs**: Scrape, RSS, Sitemap, Validate, News, Blog.
-- **Performance**: In-memory queuing, Rate limiting, User-Agent rotation.
-- **Stats**: Request logging to JSON files (`access_logs.json`, `api_keys.json`).
-- **Maintenance**: Automated cron cleanup.
+  1. **Static**: Axios + Cheerio (fastest).
+  2. **Proxy Static**: Auto-rotating proxies for bypass.
+  3. **Dynamic**: Playwright (Stealth mode) for JS-heavy sites.
+  4. **Search Fallback**: Smart fallback to 50+ search engines and RSS feeds.
+- **Smart Search**: NLP-powered intent analysis, suggestions for zero-results, and "news"/"blog" filtering.
+- **Resilience**: Rate limiting, retry with exponential backoff, health checks, and robot.txt compliance.
+- **Performance**: In-memory queuing, cache (Vercel optimization), and minimal cold starts.
+- **APIs**: Scrape, Search (News/Blog/Web), RSS, Sitemap, Validate, Stats.
+- **Maintenance**: Automated cron cleanup for logs.
 
-## Security
+## Security & Configuration
+
 This API is secured via Bearer Token.
 
-### 1. Master Key (Recommended for Vercel)
-Set the `MASTER_KEY` environment variable in your Vercel Dashboard.
-- **Generated Key**: `5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec`
-- **How to Generate New Key**:
-  ```bash
-  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-  ```
-
-### 2. Generated Keys (Local/Database)
-Run the generation script to create a key stored in the local SQLite DB:
+### Environment Variables (.env)
+Set these in Vercel Dashboard or `.env` locally:
 ```bash
-node src/scripts/generate-key.js
+MASTER_KEY=your_secure_random_key_here
+RATE_LIMIT=100
+PROXY_ENABLED=false
+SCRAPE_DELAY=1000
+MAX_RESULTS=50
+CRON_SECRET=your_cron_secret
 ```
-*Note: On Vercel Serverless, file-based DBs are ephemeral. Use MASTER_KEY for persistent access.*
+
+### Authentication
+- **Master Key**: Used for admin/cron tasks.
+- **Generated Keys**: Call `node src/scripts/generate-key.js` locally.
+
+### Key Generation
+To generate a new secure key:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+Or for the Cron Secret:
+```bash
+node src/scripts/generate-cron-secret.js
+```
 
 ## Installation
 
@@ -49,15 +62,27 @@ npm run dev
 npm test
 ```
 
-## Deployment
-
-Deploy to Vercel:
+## Deployment to Vercel
 
 1. Install Vercel CLI: `npm i -g vercel`
 2. Run `vercel`
+3. Set Environment Variables in dashboard (CRON_SECRET, MASTER_KEY, etc.).
 
-Ensure you set the Environment Variables in Vercel Dashboard (CRON_SECRET, etc.). Note that on Vercel Serverless, SQLite data is ephemeral and resets on deployment; use an external DB if persistence across deployments is required.
+**Note**: On Vercel Serverless, SQLite (`access_logs.json`) is ephemeral (resets on deployment). For persistent stats, use an external Database or Vercel KV.
+
+## API Documentation
+
+See [api.md](api.md) for detailed endpoint usage.
+
+## Resources & Bypass Strategies
+
+- **50+ Search Engines**: Includes SearxNG instances, Qwant, Mojeek, etc.
+- **Proxies**: Can scrape free proxies via `src/utils/proxyManager.js` (enable with `PROXY_ENABLED=true`). Recommended to use a paid proxy service/URL in production.
+- **Stealth**: Uses `playwright-extra` + `stealth` plugin to mimic human behavior.
 
 ## Disclaimer
 
-This tool is for personal research only. Respect website TOS and laws; author not liable for misuse.
+This tool is for educational/research purposes. 
+- Respect `robots.txt` (this tool checks it by default).
+- Do not overload sites (respect rate limits).
+- The author is not liable for misuse.

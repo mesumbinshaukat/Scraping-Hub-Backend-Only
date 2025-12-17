@@ -1,120 +1,116 @@
 # API Documentation
 
-**Base URL**: `https://scraping-hub-backend-only.vercel.app/api`
+**Base URL**: `https://<your-vercel-app>.vercel.app/api`
 
-All endpoints require Bearer token authentication.
+All endpoints require a Bearer token in the `Authorization` header.
 
----
-
-## Authentication
-
-**Required Header**:
-```
+```http
 Authorization: Bearer YOUR_API_KEY
 ```
 
-### How to Get an API Key
-
-1. **For Vercel (Production)**: Set `MASTER_KEY` environment variable in Vercel Dashboard
-2. **For Local Development**: Run `node src/scripts/generate-key.js`
-
-**Current Master Key** (for testing): `5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec`
-
 ---
 
-## Endpoints
+## 1. Advanced Search
 
-### 1. Health Check
+Flexible search across multiple engines (SearxNG, Indie, RSS) with automatic fallback and type filtering.
 
-**Endpoint**: `GET /api/health`
+**Endpoints**:
+- `GET /api/search` (Generic search)
+- `GET /api/news` (Optimize for news sources)
+- `GET /api/blog` (Optimize for blogs/wikis)
 
-**Description**: Check if the API is running
+**Parameters**:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | The search term (e.g., "AI news"). |
+| `limit` | number | No | Max results to return (default: 50). |
 
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/health" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
-```
-
-**cURL Example**:
-```bash
-curl -H "Authorization: Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec" \
-  https://scraping-hub-backend-only.vercel.app/api/health
-```
-
-**Response**:
+**Response Example** (`GET /api/news?query=tech`):
 ```json
 {
-  "status": "ok",
-  "timestamp": "2025-12-17T08:30:00.000Z"
+  "success": true,
+  "meta": {
+    "query": "tech",
+    "type": "news",
+    "count": 10,
+    "timestamp": "2025-12-17T14:30:00.000Z"
+  },
+  "data": [
+    {
+      "url": "https://techcrunch.com/2025/example",
+      "title": "Latest Tech News",
+      "snippet": "A brief snippet of the article content...",
+      "source": "techcrunch"
+    },
+    {
+      "url": "https://www.wired.com/story/example",
+      "title": "Wired Article",
+      "snippet": "Another snippet...",
+      "source": "searx_tiekoetter"
+    }
+  ],
+  "message": "Found 10 results."
 }
 ```
 
 ---
 
-### 2. Scrape Website
+## 2. Scrape Website
 
-**Endpoint**: `GET /api/scrape?url=<URL>`
+Scrapes a specific URL using a multi-phase strategy:
+1.  **Static**: Fast HTTP request.
+2.  **Proxy**: Retries with proxy if enabled.
+3.  **Dynamic**: Uses Playwright (Stealth) for JS-heavy sites.
+4.  **Fallback**: Searches for the content if direct access fails.
 
-**Description**: Scrapes a website using multi-phase strategy (static → dynamic → fallback)
+**Endpoint**: `GET /api/scrape`
 
 **Parameters**:
-- `url` (required): The URL to scrape
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | Yes | The full URL to scrape. |
 
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/scrape?url=https://example.com" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
-```
-
-**cURL Example**:
-```bash
-curl -H "Authorization: Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec" \
-  "https://scraping-hub-backend-only.vercel.app/api/scrape?url=https://example.com"
-```
-
-**Response**:
+**Response Example**:
 ```json
 {
   "success": true,
   "data": {
     "title": "Example Domain",
-    "description": "Example Domain description",
-    "content": "This domain is for use in illustrative examples...",
-    "image": "https://example.com/image.jpg",
-    "links": [
-      "https://www.iana.org/domains/example"
-    ],
-    "method": "static_phase_1"
+    "description": "This domain is for use in illustrative examples...",
+    "image": "https://example.com/og-image.jpg",
+    "mainContent": "Full body text of the article...",
+    "links": ["https://more-info.com"],
+    "method": "static_phase" // or "dynamic_phase_stealth", "fallback_phase_3_search"
   }
 }
 ```
 
 ---
 
-### 3. Parse RSS Feed
+## 3. RSS Parser
 
-**Endpoint**: `GET /api/rss?url=<RSS_URL>`
+Parses an RSS or Atom feed and normalizes the output.
 
-**Description**: Parses RSS/Atom feeds and returns items
+**Endpoint**: `GET /api/rss`
 
 **Parameters**:
-- `url` (required): RSS feed URL
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | Yes | The RSS feed URL. |
 
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/rss?url=https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
-```
-
-**Response**:
+**Response Example**:
 ```json
 {
   "success": true,
   "data": {
+    "title": "TechCrunch",
+    "description": "TechCrunch is a leading technology media property...",
     "items": [
       {
-        "title": "Article Title",
-        "link": "https://example.com/article",
-        "description": "Article description",
-        "pubDate": "2025-12-17T08:00:00Z"
+        "title": "Startup raises $10M",
+        "link": "https://techcrunch.com/startup-raise",
+        "pubDate": "Wed, 17 Dec 2025 10:00:00 GMT",
+        "contentSnippet": "Short summary of the news..."
       }
     ]
   }
@@ -123,160 +119,111 @@ Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/rss?url
 
 ---
 
-### 4. Parse Sitemap
+## 4. Sitemap Parser
 
-**Endpoint**: `GET /api/sitemap?url=<SITEMAP_URL>`
+Extracts all URLs from an XML sitemap.
 
-**Description**: Parses XML sitemaps and extracts URLs
+**Endpoint**: `GET /api/sitemap`
 
 **Parameters**:
-- `url` (required): Sitemap URL
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | Yes | The Sitemap XML URL. |
 
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/sitemap?url=https://example.com/sitemap.xml" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
-```
-
-**Response**:
+**Response Example**:
 ```json
 {
   "success": true,
   "data": {
     "urls": [
-      {
-        "loc": "https://example.com/page1",
-        "lastmod": "2025-12-01",
-        "priority": "1.0"
-      }
-    ]
+      "https://example.com/page-1",
+      "https://example.com/page-2"
+    ],
+    "count": 2
   }
 }
 ```
 
 ---
 
-### 5. Validate URL
+## 5. URL Validator
 
-**Endpoint**: `GET /api/validate?url=<URL>`
+Checks if a URL is reachable and returns its status code.
 
-**Description**: Checks if a URL is valid and accessible
+**Endpoint**: `GET /api/validate`
 
 **Parameters**:
-- `url` (required): URL to validate
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | Yes | The URL to check. |
 
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/validate?url=https://example.com" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
-```
-
-**Response**:
+**Response Example**:
 ```json
 {
   "success": true,
   "data": {
     "valid": true,
     "status": 200,
-    "contentExists": true
+    "content_type": "text/html; charset=UTF-8"
   }
 }
 ```
 
 ---
 
-### 6. Search News
+## 6. Resource Management
 
-**Endpoint**: `GET /api/news?query=<QUERY>`
+Lists all Search Engines and RSS feeds currently available and marked as "Healthy".
 
-**Description**: Searches for news articles using fallback resources
+**Endpoint**: `GET /api/resources`
 
-**Parameters**:
-- `query` (required): Search query
-- `limit` (optional): Max results (default 50)
-
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/news?query=technology" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
-```
-
-**Response**:
+**Response Example**:
 ```json
 {
-  "success": true,
-  "type": "news",
-  "query": "technology news",
-  "count": 10,
-  "data": {
-    "results": [
-      {
-        "url": "https://example.com/tech-news",
-        "title": "Tech News Article",
-        "source": "fox_news"
-      }
-    ]
-  }
+  "total_healthy": 45,
+  "search_engines": [
+    "searx_tiekoetter",
+    "searx_be",
+    "qwant_lite",
+    "wiby"
+  ],
+  "rss_feeds": [
+    "ap_news",
+    "techcrunch",
+    "hackernews"
+  ]
 }
 ```
 
 ---
 
-### 7. Search Blogs
+## 7. System Health & Stats
 
-**Endpoint**: `GET /api/blog?query=<QUERY>`
+### Health Check
+**Endpoint**: `GET /api/health`
 
-**Description**: Searches for blog posts using fallback resources
-
-**Parameters**:
-- `query` (required): Search query
-
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/blog?query=web+development" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
-```
-
-**Response**:
+**Response Example**:
 ```json
 {
-  "success": true,
-  "type": "blog",
-  "query": "web development blog",
-  "count": 10,
-  "data": {
-    "results": [
-      {
-        "url": "https://example.com/blog-post",
-        "title": "Web Development Blog Post",
-        "source": "medium_tech"
-      }
-    ]
-  }
+  "status": "ok",
+  "timestamp": "2025-12-17T19:00:00.000Z",
+  "memory": 45.2 // MB used
 }
 ```
 
----
-
-### 8. Get Statistics
-
+### Usage Statistics
 **Endpoint**: `GET /api/stats/:period`
+- `:period` can be `daily`, `weekly`, or `monthly`.
 
-**Description**: Retrieves API usage statistics
-
-**Parameters**:
-- `period` (required): One of `daily`, `weekly`, or `monthly`
-
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/stats/daily" -Headers @{Authorization="Bearer 5de0f7120d6e8a9063aca929d362718982bd408c25dfb3f001ec2ba72633f0ec"}
-```
-
-**Response**:
+**Response Example**:
 ```json
 {
   "period": "daily",
   "data": {
-    "total_requests": 150,
-    "success": 145,
-    "failures": 5,
-    "avg_duration": 234.5
+    "total_requests": 1500,
+    "success": 1450,
+    "failures": 50,
+    "avg_duration": 450.5 // ms
   },
   "note": "This API shows data for the last 6 months only."
 }
@@ -284,20 +231,14 @@ Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/stats/d
 
 ---
 
-### 9. Cleanup Logs (Cron)
+## 8. Cron Maintenance
 
 **Endpoint**: `GET /api/cron/cleanup`
+**Auth**: Requires `Authorization: Bearer <CRON_SECRET>`
 
-**Description**: Deletes logs older than 6 months (for Vercel Cron jobs)
+**Description**: Deletes logs older than 6 months. Designed to be called by Vercel Cron.
 
-**Authentication**: Requires `CRON_SECRET` in production
-
-**PowerShell Example**:
-```powershell
-Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/cron/cleanup" -Headers @{Authorization="Bearer YOUR_CRON_SECRET"}
-```
-
-**Response**:
+**Response Example**:
 ```json
 {
   "message": "Cleanup complete"
@@ -308,52 +249,27 @@ Invoke-RestMethod -Uri "https://scraping-hub-backend-only.vercel.app/api/cron/cl
 
 ## Error Responses
 
-### 401 Unauthorized
+**400 Bad Request**
 ```json
-{
-  "error": "Unauthorized: Missing or invalid Bearer token"
-}
+{ "error": "Query parameter 'url' is required" }
 ```
 
-### 403 Forbidden
+**401 Unauthorized**
 ```json
-{
-  "error": "Forbidden: Invalid token"
-}
+{ "error": "Missing Authorization header" }
 ```
 
-### 400 Bad Request
+**429 Too Many Requests**
+```json
+{ "error": "Too many requests, please try again later." }
+```
+
+**500 Internal Server Error**
 ```json
 {
   "error": {
-    "message": "\"url\" is required",
-    "status": 400
-  }
-}
-```
-
-### 500 Internal Server Error
-```json
-{
-  "error": {
-    "message": "Internal Server Error",
+    "message": "Scraping failed after 3 attempts.",
     "status": 500
   }
 }
 ```
-
----
-
-## Rate Limiting
-
-- **Limit**: 100 requests per 15 minutes per IP
-- **Response when exceeded**: `429 Too Many Requests`
-
----
-
-## Notes
-
-- All endpoints return JSON responses
-- Data storage is ephemeral on Vercel (resets on deployment)
-- For persistent API keys, use the `MASTER_KEY` environment variable
-- Scraping uses a 3-phase strategy: Static → Dynamic (Playwright) → Fallback (Search engines)
