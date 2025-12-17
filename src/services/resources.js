@@ -92,7 +92,7 @@ class ResourceManager {
                     // Handle POST params if needed, mostly form data
                 }
 
-                logger.info(`Searching via ${key}`);
+                console.log(`Searching via ${key}`);
                 const response = await axios(resource.url, config);
                  // Need to handle POST data specifically if the engine requires it in body
                  // Simplify for now to GET-based engines mainly or handle simple POSTs
