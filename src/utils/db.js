@@ -1,26 +1,38 @@
-import Database from 'better-sqlite3';
+import initSqlJs from 'sql.js';
+import fs from 'fs';
 import path from 'path';
 
 let db;
+let SQL;
 
-export const initDb = () => {
+export const initDb = async () => {
     if (db) return db;
 
-    // Use /tmp in production (Vercel) to avoid readonly errors, though data is ephemeral
-    // Locally use project root
+    // Initialize SQL.js
+    if (!SQL) {
+        SQL = await initSqlJs();
+    }
+
     const dbPath = process.env.NODE_ENV === 'production' 
         ? path.join('/tmp', 'scraping.db') 
         : path.join(process.cwd(), 'scraping.db');
 
-    console.log(`Initializing SQLite database at ${dbPath}`);
+    console.log(`Initializing SQL.js database at ${dbPath}`);
     
-    db = new Database(dbPath);
-    
-    // basic wal mode for better concurrency
-    db.pragma('journal_mode = WAL');
+    // Load existing DB or create new
+    let buffer;
+    try {
+        if (fs.existsSync(dbPath)) {
+            buffer = fs.readFileSync(dbPath);
+        }
+    } catch (e) {
+        console.log('Creating new database');
+    }
 
+    db = new SQL.Database(buffer);
+    
     // Create tables
-    db.exec(`
+    db.run(`
       CREATE TABLE IF NOT EXISTS access_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         endpoint TEXT NOT NULL,
@@ -29,7 +41,9 @@ export const initDb = () => {
         duration INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+    `);
 
+    db.run(`
       CREATE TABLE IF NOT EXISTS api_keys (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         key_hash TEXT NOT NULL,
@@ -37,12 +51,46 @@ export const initDb = () => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Save to disk periodically
+    saveDb(dbPath);
     
     return db;
 };
 
-// Wrapper ensuring DB is init
-export const getDb = () => {
-    if (!db) return initDb();
+const saveDb = (dbPath) => {
+    if (db) {
+        const data = db.export();
+        const buffer = Buffer.from(data);
+        fs.writeFileSync(dbPath, buffer);
+    }
+};
+
+export const getDb = async () => {
+    if (!db) await initDb();
     return db;
+};
+
+export const query = async (sql, params = []) => {
+    const database = await getDb();
+    const stmt = database.prepare(sql);
+    stmt.bind(params);
+    
+    const results = [];
+    while (stmt.step()) {
+        results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    
+    // Save after write operations
+    if (sql.trim().toUpperCase().startsWith('INSERT') || 
+        sql.trim().toUpperCase().startsWith('UPDATE') ||
+        sql.trim().toUpperCase().startsWith('DELETE')) {
+        const dbPath = process.env.NODE_ENV === 'production' 
+            ? path.join('/tmp', 'scraping.db') 
+            : path.join(process.cwd(), 'scraping.db');
+        saveDb(dbPath);
+    }
+    
+    return results;
 };

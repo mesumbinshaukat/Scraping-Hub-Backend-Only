@@ -1,9 +1,8 @@
-import { getDb } from '../utils/db.js';
+import { getDb, query } from '../utils/db.js';
 
 export const statsController = async (req, res, next) => {
     try {
-        const { period } = req.params; // daily, weekly, monthly
-        const db = getDb();
+        const { period } = req.params;
         
         let timeModifier;
         switch(period) {
@@ -23,8 +22,8 @@ export const statsController = async (req, res, next) => {
             WHERE created_at > datetime('now', ?)
         `;
 
-        const stmt = db.prepare(sql);
-        const result = stmt.get(timeModifier);
+        const results = await query(sql, [timeModifier]);
+        const result = results[0] || { total_requests: 0, success: 0, failures: 0, avg_duration: 0 };
 
         res.json({
             period,
@@ -37,7 +36,6 @@ export const statsController = async (req, res, next) => {
     }
 };
 
-// Middleware to log requests
 export const logRequest = async (req, res, next) => {
     const start = Date.now();
     
@@ -48,9 +46,10 @@ export const logRequest = async (req, res, next) => {
         const ip = req.ip || req.connection.remoteAddress;
 
         try {
-            const db = getDb();
-            const stmt = db.prepare('INSERT INTO access_logs(endpoint, status, ip, duration) VALUES(?, ?, ?, ?)');
-            stmt.run(endpoint, status, ip, duration);
+            await query(
+                'INSERT INTO access_logs(endpoint, status, ip, duration) VALUES(?, ?, ?, ?)',
+                [endpoint, status, ip, duration]
+            );
         } catch (e) {
             console.error("Failed to log request", e);
         }
@@ -60,19 +59,16 @@ export const logRequest = async (req, res, next) => {
 };
 
 export const cleanupLogs = async (req, res, next) => {
-    // Vercel Cron verification
     const authHeader = req.headers.authorization;
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && process.env.NODE_ENV === 'production') {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
     try {
-        const db = getDb();
-        // Delete older than 6 months
-        const stmt = db.prepare("DELETE FROM access_logs WHERE created_at < datetime('now', '-6 months')");
-        const info = stmt.run();
+        const sql = "DELETE FROM access_logs WHERE created_at < datetime('now', '-6 months')";
+        await query(sql);
         
-        res.json({ message: 'Cleanup complete', deleted: info.changes });
+        res.json({ message: 'Cleanup complete' });
     } catch (err) {
         next(err);
     }

@@ -9,8 +9,8 @@ import { initDb } from './utils/db.js';
 
 dotenv.config();
 
-// Initialize DB immediately
-initDb();
+// Initialize DB immediately (async)
+initDb().catch(console.error);
 
 const app = express();
 
