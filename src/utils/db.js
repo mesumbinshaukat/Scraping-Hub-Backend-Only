@@ -1,6 +1,11 @@
 import initSqlJs from 'sql.js';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 let db;
 let SQL;
@@ -8,10 +13,16 @@ let SQL;
 export const initDb = async () => {
     if (db) return db;
 
-    // Initialize SQL.js with CDN-hosted WASM (Vercel compatible)
+    // Initialize SQL.js
     if (!SQL) {
+        // In production (Vercel), load WASM from node_modules
+        // sql.js will automatically find it
+        const wasmBinary = await fetch(
+            new URL('../../../node_modules/sql.js/dist/sql-wasm.wasm', import.meta.url)
+        ).then(res => res.arrayBuffer());
+        
         SQL = await initSqlJs({
-            locateFile: file => `https://sql.js.org/dist/${file}`
+            wasmBinary
         });
     }
 

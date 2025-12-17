@@ -29,8 +29,7 @@
         "playwright-core": "^1.40.0",
         "robots-parser": "^3.0.1",
         "validator": "^13.11.0",
-        "winston": "^3.11.0",
-        "sql.js": "^1.8.0"
+        "winston": "^3.11.0"
     },
     "devDependencies": {
         "jest": "^29.7.0",
