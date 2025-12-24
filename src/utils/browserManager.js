@@ -1,8 +1,10 @@
-import chromium from '@sparticuz/chromium-min';
-import { chromium as extraChromium } from 'playwright-extra';
+import chromiumPack from '@sparticuz/chromium-min';
+import { chromium } from 'playwright-core';
+import { addExtra } from 'playwright-extra';
 import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 
-// Register stealth plugin
+// Explicitly patch Playwright with Stealth
+const extraChromium = addExtra(chromium);
 extraChromium.use(stealthPlugin());
 
 const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
@@ -10,18 +12,19 @@ const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
 /**
  * Unified browser manager for local and Vercel environments.
  * Uses playwright-extra with stealth plugin.
+ * Explicitly patches playwright-core to avoid "Playwright is missing" errors on Vercel.
  */
 export const getBrowser = async () => {
     try {
         if (isVercel) {
             // Vercel / Lambda environment
-            const executablePath = await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar');
+            const executablePath = await chromiumPack.executablePath('https://github.com/Sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar');
 
             const browser = await extraChromium.launch({
-                args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-                defaultViewport: chromium.defaultViewport,
+                args: [...chromiumPack.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+                defaultViewport: chromiumPack.defaultViewport,
                 executablePath,
-                headless: chromium.headless,
+                headless: chromiumPack.headless,
             });
             return browser;
         } else {
