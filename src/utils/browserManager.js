@@ -6,7 +6,16 @@ import 'puppeteer-extra'; // Ensure peer dep is satisfied for stealth plugin
 
 // Explicitly patch Playwright with Stealth
 const extraChromium = addExtra(chromium);
-extraChromium.use(stealthPlugin());
+const stealth = stealthPlugin();
+
+// Disable evasions that cause dynamic require issues on Vercel/bundlers
+if (isVercel) {
+    stealth.enabledEvasions.delete('chrome.app');
+    stealth.enabledEvasions.delete('chrome.runtime');
+    console.log('Stealth evasions [chrome.app, chrome.runtime] disabled for Vercel stability.');
+}
+
+extraChromium.use(stealth);
 
 const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
 let cachedExecutablePath = null;
