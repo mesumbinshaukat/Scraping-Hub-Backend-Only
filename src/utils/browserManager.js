@@ -4,6 +4,8 @@ import { addExtra } from 'playwright-extra';
 import stealthPlugin from 'puppeteer-extra-plugin-stealth';
 import 'puppeteer-extra'; // Ensure peer dep is satisfied for stealth plugin
 
+const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
+
 // Explicitly patch Playwright with Stealth
 const extraChromium = addExtra(chromium);
 const stealth = stealthPlugin();
@@ -17,7 +19,6 @@ if (isVercel) {
 
 extraChromium.use(stealth);
 
-const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
 let cachedExecutablePath = null;
 
 const CHROMIUM_PACK_URL = 'https://github.com/Sparticuz/chromium/releases/download/v126.0.0/chromium-v126.0.0-pack.tar';
