@@ -27,7 +27,7 @@ export const getBrowser = async (attempt = 1) => {
                 args: [...chromiumPack.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
                 defaultViewport: chromiumPack.defaultViewport,
                 executablePath: cachedExecutablePath,
-                headless: chromiumPack.headless,
+                headless: true,
             });
         } else {
             // Local Development
