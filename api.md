@@ -60,8 +60,8 @@ Flexible search across multiple engines (SearxNG, Indie, RSS) with automatic fal
 Scrapes a specific URL using a multi-phase strategy:
 1.  **Static**: Fast HTTP request.
 2.  **Proxy**: Retries with proxy if enabled.
-3.  **Dynamic**: Uses Playwright (Stealth) for JS-heavy sites.
-4.  **Fallback**: Searches for the content if direct access fails.
+3.  **Dynamic**: Uses Playwright with manual 2025 stealth evasions.
+4.  **Fallback**: Searches for content via 50+ engines and RSS domain search if direct access fails.
 
 **Endpoint**: `GET /api/scrape`
 

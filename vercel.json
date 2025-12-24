@@ -1,15 +1,11 @@
 {
     "version": 2,
-    "builds": [
-        {
-            "src": "src/app.js",
-            "use": "@vercel/node",
-            "config": {
-                "maxDuration": 60,
-                "memory": 3008
-            }
+    "functions": {
+        "api/*.js": {
+            "maxDuration": 10,
+            "memory": 1024
         }
-    ],
+    },
     "routes": [
         {
             "src": "/(.*)",
@@ -17,12 +13,16 @@
         }
     ],
     "env": {
-        "PLAYWRIGHT_BROWSERS_PATH": "0"
+        "PLAYWRIGHT_BROWSERS_PATH": "0",
+        "VERCEL": "1",
+        "PROXY_ENABLED": "true",
+        "MAX_RETRIES": "3",
+        "SCRAPE_DELAY": "2000"
     },
     "crons": [
         {
             "path": "/health",
-            "schedule": "0 0 * * *"
+            "schedule": "*/5 * * * *"
         }
     ]
 }

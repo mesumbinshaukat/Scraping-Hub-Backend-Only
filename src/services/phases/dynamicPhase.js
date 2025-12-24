@@ -1,5 +1,7 @@
 import { getBrowser } from '../../utils/browserManager.js';
 import winston from 'winston';
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
 
 const logger = winston.createLogger({
     level: 'info',
@@ -7,135 +9,178 @@ const logger = winston.createLogger({
     transports: [new winston.transports.Console()],
 });
 
+const window = new JSDOM('').window;
+const dompurify = createDOMPurify(window);
+
+export class BlockDetectedError extends Error {
+    constructor(message, status = 403) {
+        super(message);
+        this.name = 'BlockDetectedError';
+        this.status = status;
+    }
+}
+
 /**
- * Enhanced Dynamic Scraping Phase using Playwright with Stealth
- * Includes manual evasions as backup for the stealth plugin.
+ * Enhanced Dynamic Scraping Phase using Playwright with direct Evasions.
+ * Optimized for Vercel Hobby (8s timeout).
  */
 export const dynamicPhase = async (url, options = {}) => {
-    let browser = null;
-    let context = null;
-    let page = null;
     const startTime = Date.now();
-    const PHASE_TIMEOUT = 50000; // 50 seconds to fit within Vercel's 60s limit
+    const HOBBY_TIMEOUT = 8000; // 8 seconds for Hobby compatibility
+    const MAX_PHASE_RETRIES = 2;
 
-    try {
-        logger.info(`Starting dynamic scrape for: ${url}`);
+    const runAttempt = async (attempt) => {
+        let browser = null;
+        let context = null;
+        let page = null;
 
-        browser = await getBrowser();
-
-        context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-            viewport: { width: 1920, height: 1080 },
-            deviceScaleFactor: 1,
-            ...options
-        });
-
-        // Add manual evasions as backup
-        await context.addInitScript(() => {
-            // Delete navigator.webdriver
-            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-
-            // Randomize screen resolution slightly
-            const originalQuery = window.matchMedia;
-            window.matchMedia = (query) => {
-                if (query === '(prefers-reduced-motion: reduce)') return { matches: false, addListener: () => { }, removeListener: () => { } };
-                return originalQuery(query);
-            };
-
-            // Fake some plugins
-            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-
-            // Mock languages
-            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-        });
-
-        page = await context.newPage();
-
-        // Monitor responses for blocks
-        page.on('response', response => {
-            const status = response.status();
-            if (status === 403 || status === 429) {
-                logger.warn(`Block detected for ${url}: Status ${status}`);
-            }
-        });
-
-        // Set an overall timeout for the page navigation and extraction
-        const navigationPromise = page.goto(url, {
-            waitUntil: 'domcontentloaded',
-            timeout: 30000
-        });
-
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Phase Timeout')), PHASE_TIMEOUT)
-        );
-
-        await Promise.race([navigationPromise, timeoutPromise]);
-
-        // Wait for body or specific indicators
         try {
-            await page.waitForSelector('body', { timeout: 10000 });
-            // Look for CAPTCHA markers
-            const bodyHtml = await page.content();
-            if (bodyHtml.toLowerCase().includes('captcha') || bodyHtml.toLowerCase().includes('blocked')) {
-                logger.warn('Anti-bot detected in page content');
-            }
-            await page.waitForTimeout(2000); // Allow JS to settle
-        } catch (e) {
-            logger.warn('Timeout waiting for body or settling, proceeding...');
-        }
-
-        // Extract Data
-        const data = await page.evaluate(() => {
-            const getMeta = (name) => {
-                const el = document.querySelector(`meta[name="${name}"], meta[property="${name}"]`);
-                return el ? el.getAttribute('content') : '';
-            };
-
-            const removeNoise = () => {
-                const selectors = ['script', 'style', 'nav', 'footer', 'header', 'aside', '.ad', '.advertisement'];
-                selectors.forEach(s => document.querySelectorAll(s).forEach(e => e.remove()));
-            };
-            removeNoise();
-
-            const mainSelectors = ['main', 'article', '#content', '.content', '.post-content', 'body'];
-            let content = '';
-            for (const sel of mainSelectors) {
-                const el = document.querySelector(sel);
-                if (el && el.innerText.length > 200) {
-                    content = el.innerText;
-                    break;
+            browser = await getBrowser();
+            context = await browser.newContext({
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                viewport: { width: 1280 + Math.floor(Math.random() * 100), height: 720 + Math.floor(Math.random() * 100) },
+                deviceScaleFactor: 1,
+                extraHTTPHeaders: {
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 }
+            });
+
+            // 2025 Manual Stealth Evasions
+            await context.addInitScript(() => {
+                // 1. Delete webdriver
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+
+                // 2. Mock hardwareConcurrency
+                Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+
+                // 3. Mock languages
+                Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+
+                // 4. Mock plugins
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => ({
+                        length: 5,
+                        item: () => null,
+                        namedItem: () => null,
+                        refresh: () => { }
+                    })
+                });
+
+                // 5. Mock Permissions
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                );
+
+                // 6. Mock Chrome specialized properties
+                window.chrome = {
+                    app: { isInstalled: false },
+                    runtime: { OnInstalledReason: { INSTALL: 'install' } },
+                    loadTimes: () => ({}),
+                    csi: () => ({})
+                };
+
+                // 7. Add Canvas Fingerprint Noise
+                const originalGetContext = HTMLCanvasElement.prototype.getContext;
+                HTMLCanvasElement.prototype.getContext = function (type, attributes) {
+                    if (type === '2d') {
+                        const originalFillText = this.prototype.fillText;
+                        this.prototype.fillText = function () {
+                            if (Math.random() > 0.99) return;
+                            return originalFillText.apply(this, arguments);
+                        };
+                    }
+                    return originalGetContext.apply(this, arguments);
+                };
+            });
+
+            page = await context.newPage();
+
+            // Block Detection
+            let blockDetected = false;
+            page.on('response', response => {
+                const status = response.status();
+                if ([403, 429, 503].includes(status)) {
+                    blockDetected = true;
+                }
+            });
+
+            // Navigation with phase-level timeout
+            const remainingTime = HOBBY_TIMEOUT - (Date.now() - startTime);
+            if (remainingTime <= 0) throw new Error('Global Phase Timeout');
+
+            await page.goto(url, {
+                waitUntil: 'domcontentloaded',
+                timeout: Math.min(remainingTime, 6000)
+            });
+
+            if (blockDetected) {
+                throw new BlockDetectedError(`Block detected on ${url}`);
+            }
+
+            // Wait for JS settle (short)
+            await page.waitForTimeout(1000);
+
+            // Extract and clean
+            const data = await page.evaluate(() => {
+                const getMeta = (n) => document.querySelector(`meta[name="${n}"], meta[property="${n}"]`)?.getAttribute('content') || '';
+
+                // Remove noise
+                ['script', 'style', 'nav', 'footer', 'header', 'aside', 'iframe'].forEach(s =>
+                    document.querySelectorAll(s).forEach(e => e.remove())
+                );
+
+                return {
+                    title: document.title,
+                    description: getMeta('description') || getMeta('og:description'),
+                    image: getMeta('og:image'),
+                    html: document.body.innerHTML,
+                    innerText: document.body.innerText,
+                    links: Array.from(document.querySelectorAll('a[href^="http"]'))
+                        .map(a => a.href)
+                        .slice(0, 50)
+                };
+            });
+
+            // Sanitize Content
+            const cleanContent = dompurify.sanitize(data.html, { ALLOWED_TAGS: [] });
+            const finalContent = (cleanContent || data.innerText).trim().substring(0, 200000);
+
+            if (finalContent.length < 100) {
+                throw new Error('Content too short or empty after sanitization');
             }
 
             return {
-                title: document.title,
-                description: getMeta('description') || getMeta('og:description'),
-                image: getMeta('og:image'),
-                mainContent: content || document.body.innerText.substring(0, 5000),
-                links: Array.from(document.querySelectorAll('a[href^="http"]'))
-                    .map(a => a.href)
-                    .slice(0, 50)
+                title: data.title,
+                description: data.description,
+                image: data.image,
+                mainContent: finalContent,
+                links: [...new Set(data.links)],
+                method: 'dynamic_manual_stealth',
+                duration: Date.now() - startTime
             };
-        });
 
-        if (!data.mainContent || data.mainContent.length < 100) {
-            throw new Error('Content too short or empty');
+        } catch (error) {
+            if (attempt < MAX_PHASE_RETRIES && (error instanceof BlockDetectedError || error.message.includes('timeout'))) {
+                logger.warn(`Retrying dynamic phase for ${url} (Attempt ${attempt + 1})`);
+                if (page) await page.close().catch(() => { });
+                if (context) await context.close().catch(() => { });
+                return runAttempt(attempt + 1);
+            }
+            throw error;
+        } finally {
+            if (page) await page.close().catch(() => { });
+            if (context) await context.close().catch(() => { });
         }
+    };
 
-        return {
-            ...data,
-            mainContent: data.mainContent.substring(0, 200000), // Safe truncation
-            links: [...new Set(data.links)],
-            method: 'dynamic_phase_stealth',
-            duration: Date.now() - startTime
-        };
-
+    try {
+        return await runAttempt(1);
     } catch (error) {
-        logger.error(`Dynamic scrape error for ${url}: ${error.message}`);
+        logger.error(`Dynamic phase failed for ${url}: ${error.message}`);
         throw error;
-    } finally {
-        if (page) await page.close();
-        if (context) await context.close();
-        if (browser) await browser.close();
     }
 };

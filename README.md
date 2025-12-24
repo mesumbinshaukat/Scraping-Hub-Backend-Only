@@ -78,7 +78,8 @@ See [api.md](api.md) for detailed endpoint usage.
 
 - **50+ Search Engines**: Includes SearxNG instances, Qwant, Mojeek, etc.
 - **Proxies**: Can scrape free proxies via `src/utils/proxyManager.js` (enable with `PROXY_ENABLED=true`). Recommended to use a paid proxy service/URL in production.
-- **Stealth**: Uses `playwright-extra` + `stealth` plugin to mimic human behavior.
+- **Stealth**: Uses direct `playwright-core` with manual 2025 stealth evasions (navigator.webdriver deletion, plugin/hardware mocks, canvas noise) to avoid dependency errors on Vercel.
+- **Hobby Optimization**: Configured with 10s timeouts for functions to stay within Vercel Hobby tier limits.
 
 ## Disclaimer
 

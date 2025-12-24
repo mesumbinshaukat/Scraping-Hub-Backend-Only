@@ -4,161 +4,158 @@ import { UserAgent } from '../../utils/userAgents.js';
 import robotsParser from 'robots-parser';
 import cloudscraper from 'cloudscraper';
 import { proxyManager } from '../../utils/proxyManager.js';
-import DOMPurify from 'dompurify';
+import createDOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
 import iconv from 'iconv-lite';
 
 const window = new JSDOM('').window;
-const purify = DOMPurify(window);
+const dompurify = createDOMPurify(window);
 
 const SCRAPE_DELAY = parseInt(process.env.SCRAPE_DELAY) || 2000;
 const MAX_RETRIES = parseInt(process.env.MAX_RETRIES) || 3;
 
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
+/**
+ * Fetch and parse robots.txt
+ */
 const getRobotsTxt = async (url) => {
     try {
         const robotsUrl = new URL('/robots.txt', url).href;
         const response = await axios.get(robotsUrl, { timeout: 3000 });
         return robotsParser(robotsUrl, response.data);
     } catch (e) {
-        return null;
+        return null; // Assume allowed if robots.txt unreachable
     }
 };
 
-const makeRequest = async (url, options = {}, attempt = 1) => {
+/**
+ * Core request maker with Cloudscraper/Proxy/Retry logic
+ */
+const requestWithRetry = async (url, options = {}, attempt = 1) => {
     try {
         const delay = Math.floor(Math.random() * SCRAPE_DELAY) + 500;
-        await wait(delay);
+        await new Promise(r => setTimeout(r, delay));
 
         const headers = {
             'User-Agent': UserAgent.getRandom(),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
             'Referer': 'https://www.google.com/',
-            'Upgrade-Insecure-Requests': '1',
             ...options.headers
         };
 
-        const proxyUrl = process.env.PROXY_ENABLED === 'true' ? await proxyManager.getNextProxy() : null;
         const config = {
-            method: options.method || 'GET',
             url,
+            method: options.method || 'GET',
             headers,
-            timeout: 10000,
-            validateStatus: (status) => status === 200,
-            responseType: 'arraybuffer', // For iconv handling
-            ...options
+            timeout: 8000,
+            responseType: 'arraybuffer',
         };
 
-        if (proxyUrl) {
-            const [host, port] = proxyUrl.split('://')[1].split(':');
-            config.proxy = { host, port: parseInt(port) };
-        }
-
-        // Handle POST data
-        if (options.data && options.headers?.['Content-Type'] === 'application/x-www-form-urlencoded') {
-            config.data = new URLSearchParams(options.data).toString();
+        // Proxy Rotation
+        if (process.env.PROXY_ENABLED === 'true') {
+            const proxy = await proxyManager.getNextProxy();
+            if (proxy) {
+                const urlParsed = new URL(proxy);
+                config.proxy = {
+                    host: urlParsed.hostname,
+                    port: parseInt(urlParsed.port)
+                };
+            }
         }
 
         try {
-            const response = await axios(config);
-            // Handle encoding
-            const contentType = response.headers['content-type'] || '';
-            const charsetMatch = contentType.match(/charset=([^;]+)/i);
-            const charset = charsetMatch ? charsetMatch[1] : 'utf-8';
-            let data = iconv.decode(Buffer.from(response.data), charset);
+            // Priority 1: Cloudscraper (Bypasses Cloudflare/Some Akamai)
+            const csResponse = await cloudscraper({
+                ...config,
+                resolveWithFullResponse: true,
+                simple: true
+            });
 
-            if (!data || data.length < 100) {
-                throw new Error('Empty content received');
+            const data = iconv.decode(Buffer.from(csResponse.body), 'utf-8');
+            return { data, status: csResponse.statusCode };
+        } catch (csError) {
+            // Priority 2: Standard Axios fallback if cloudscraper fails for non-antibot reasons
+            if (csError.statusCode !== 403 && csError.statusCode !== 429) {
+                const axiosResponse = await axios(config);
+                const data = iconv.decode(Buffer.from(axiosResponse.data), 'utf-8');
+                return { data, status: axiosResponse.status };
             }
-            return { data };
-        } catch (axiosError) {
-            // Fallback to cloudscraper
-            if (axiosError.response?.status === 403 || !axiosError.response) {
-                console.log(`Axios failed (status: ${axiosError.response?.status}). Trying cloudscraper fallback...`);
-                const csData = await cloudscraper({
-                    method: config.method,
-                    url: config.url,
-                    headers: config.headers,
-                    formData: options.data, // Keep formData for cloudscraper if present
-                    timeout: config.timeout
-                });
-                return { data: csData };
-            }
-            throw axiosError;
+            throw csError;
         }
+
     } catch (error) {
-        if (attempt < MAX_RETRIES) {
-            // Exponential backoff
+        const status = error.response?.status || error.statusCode;
+        if (attempt < MAX_RETRIES && ([403, 429, 503].includes(status) || error.code === 'ECONNABORTED')) {
             const backoff = Math.pow(2, attempt) * 1000;
-            console.log(`Static retry ${attempt} in ${backoff}ms...`);
-            await wait(backoff);
-            return makeRequest(url, options, attempt + 1);
+            console.log(`Static phase retry ${attempt} for ${url} in ${backoff}ms...`);
+            return requestWithRetry(url, options, attempt + 1);
         }
         throw error;
     }
 };
 
-export const staticPhase = async (url, options = { userAgent: 'Googlebot' }) => {
+/**
+ * Main Static Phase entry
+ */
+export const staticPhase = async (url, options = {}) => {
     try {
-        // Check robots.txt logic
+        // 1. Robots.txt Compliance
         const robots = await getRobotsTxt(url);
-        if (robots && !robots.isAllowed(url, options.userAgent)) {
-            console.log('Disallowed by robots.txt, skipping static phase.');
+        if (robots && !robots.isAllowed(url, 'Googlebot')) {
             throw new Error('Disallowed by robots.txt');
         }
 
-        const response = await makeRequest(url, options);
-
+        // 2. Execute Request
+        const response = await requestWithRetry(url, options);
         const $ = cheerio.load(response.data);
 
-        // Security check for captcha/block pages
-        const title = $('title').text().toLowerCase();
-        if (title.includes('captcha') || title.includes('security check') || title.includes('blocked')) {
-            throw new Error('Anti-bot detected in static phase');
+        // 3. Block Detection in Content
+        const pageText = $('body').text().toLowerCase();
+        if (pageText.includes('captcha') || pageText.includes('access denied') || pageText.includes('blocked')) {
+            throw new Error('Anti-bot detected in static content');
         }
 
-        const data = {
-            title: $('title').text().trim(),
-            description: $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '',
-            image: $('meta[property="og:image"]').attr('content') || '',
-            mainContent: '',
-            links: [],
-            method: 'static_phase'
-        };
+        // 4. Data Extraction
+        const getMeta = (n) => $(`meta[name="${n}"], meta[property="${n}"]`).attr('content') || '';
 
-        // Improved Main Content Extraction
         // Remove noise
-        $('script, style, nav, footer, header, aside, .ad, .advertisement').remove();
+        $('script, style, nav, footer, header, aside, .ad, iframe').remove();
 
-        // Try to find main article container
-        const mainSelectors = ['main', 'article', '#content', '.content', '.post-content'];
+        const mainSelectors = ['main', 'article', '#content', '.content', '.post-content', 'body'];
         let mainContent = '';
-
         for (const selector of mainSelectors) {
-            if ($(selector).length > 0) {
-                mainContent = $(selector).text().replace(/\s+/g, ' ').trim();
-                if (mainContent.length > 200) break; // Good enough length
+            const el = $(selector);
+            if (el.length > 0) {
+                const text = el.text().replace(/\s+/g, ' ').trim();
+                if (text.length > 200) {
+                    mainContent = text;
+                    break;
+                }
             }
         }
 
-        data.mainContent = purify.sanitize(mainContent).substring(0, 200000); // 200k char limit
+        const sanitized = dompurify.sanitize(mainContent || $('body').text()).trim().substring(0, 200000);
 
-        // Extract Links
-        $('a').each((i, el) => {
-            const href = $(el).attr('href');
-            if (href?.startsWith('http')) {
-                data.links.push(href);
-            }
+        if (sanitized.length < 200) {
+            throw new Error('Static content too short, possible partial block');
+        }
+
+        const links = [];
+        $('a[href^="http"]').each((_, el) => {
+            links.push($(el).attr('href'));
         });
 
-        // Limit links
-        data.links = [...new Set(data.links)].slice(0, 50);
-
-        return data;
+        return {
+            title: $('title').text().trim(),
+            description: getMeta('description') || getMeta('og:description'),
+            image: getMeta('og:image'),
+            mainContent: sanitized,
+            links: [...new Set(links)].slice(0, 50),
+            method: 'static_cloudscraper',
+            duration: 0 // Will be set by parent
+        };
 
     } catch (error) {
-        throw error; // Rethrow to trigger dynamic phase
+        throw error; // Rethrow to trigger fallback/dynamic
     }
 };

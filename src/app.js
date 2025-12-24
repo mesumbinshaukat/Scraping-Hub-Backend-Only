@@ -16,6 +16,9 @@ initDb().catch(console.error);
 // Initialize Resources (health check)
 resourceManager.init().catch(err => console.error('Resource init failed:', err));
 
+// Initial proxy refresh
+import('./utils/proxyManager.js').then(m => m.proxyManager.refreshProxies().catch(console.error));
+
 const app = express();
 
 // Logger Configuration
