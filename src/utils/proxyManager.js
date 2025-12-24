@@ -1,73 +1,80 @@
 import axios from 'axios';
-import NodeCache from 'node-cache';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+import * as cheerio from 'cheerio';
+import winston from 'winston';
 
-const cache = new NodeCache({ stdTTL: 3600 }); // Cache proxies for 1 hour
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.json(),
+    transports: [new winston.transports.Console()],
+});
 
 class ProxyManager {
     constructor() {
         this.proxies = [];
-        this.lastFetch = 0;
-        this.FETCH_INTERVAL = 1000 * 60 * 60; // 1 hour
+        this.currentIndex = 0;
+        this.lastUpdateTime = 0;
+        this.updateInterval = 30 * 60 * 1000; // 30 minutes
     }
 
-    async getProxy() {
-        if (this.proxies.length === 0 || Date.now() - this.lastFetch > this.FETCH_INTERVAL) {
-            await this.fetchProxies();
+    async getProxies() {
+        if (Date.now() - this.lastUpdateTime > this.updateInterval || this.proxies.length === 0) {
+            await this.refreshProxies();
         }
-
-        // Return a random healthy proxy if enabled
-        if (process.env.PROXY_ENABLED !== 'true' || this.proxies.length === 0) {
-            return null;
-        }
-
-        // Simple rotation: random choice
-        return this.proxies[Math.floor(Math.random() * this.proxies.length)];
+        return this.proxies;
     }
 
-    async fetchProxies() {
-        console.log('Fetching fresh proxies...');
+    async refreshProxies() {
+        if (process.env.PROXY_ENABLED !== 'true') return;
+
+        logger.info('Updating free proxies...');
         try {
-            // Fetch from free-proxy-list.net (example source)
-            // In production, use a paid provider or more robust matching
-            const response = await axios.get('https://free-proxy-list.net/');
-            const html = response.data;
-            
-            // Simple regex to find IPs (quick & dirty for free lists)
-            const ipPortRegex = /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})/g;
-            const found = [];
-            let match;
-            
-            // Extract from the first 100 matches to avoid garbage
-            while ((match = ipPortRegex.exec(html)) !== null && found.length < 50) {
-                found.push(`http://${match[1]}:${match[2]}`);
-            }
+            const response = await axios.get('https://free-proxy-list.net/', { timeout: 10000 });
+            const $ = cheerio.load(response.data);
+            const newList = [];
 
-            console.log(`Found ${found.length} potential proxies. validating...`);
-            
-            // Validate first 20 concurrently
-            const candidates = found.slice(0, 20);
-            const valid = (await Promise.all(candidates.map(p => this.checkHealth(p)))).filter(Boolean);
+            $('.table-responsive tbody tr').each((i, row) => {
+                const cols = $(row).find('td');
+                const ip = $(cols[0]).text().trim();
+                const port = $(cols[1]).text().trim();
+                const https = $(cols[6]).text().trim() === 'yes';
 
-            this.proxies = valid;
-            this.lastFetch = Date.now();
-            console.log(`Active Proxies: ${this.proxies.length}`);
-
-        } catch (error) {
-            console.error('Failed to fetch proxies:', error.message);
-        }
-    }
-
-    async checkHealth(proxyUrl) {
-        try {
-            const agent = new HttpsProxyAgent(proxyUrl);
-            await axios.head('https://www.google.com', {
-                httpsAgent: agent,
-                timeout: 3000 // Fast timeout
+                if (ip && port && https) {
+                    newList.push(`http://${ip}:${port}`);
+                }
             });
-            return proxyUrl;
+
+            this.proxies = newList.slice(0, 50); // Limit to top 50
+            this.lastUpdateTime = Date.now();
+            logger.info(`Found ${this.proxies.length} potential HTTPS proxies.`);
+        } catch (error) {
+            logger.error('Failed to update proxies:', error.message);
+        }
+    }
+
+    async getNextProxy() {
+        const list = await this.getProxies();
+        if (list.length === 0) return null;
+
+        const proxy = list[this.currentIndex];
+        this.currentIndex = (this.currentIndex + 1) % list.length;
+        return proxy;
+    }
+
+    /**
+     * Optional validation for a specific proxy
+     */
+    async validateProxy(proxyUrl) {
+        try {
+            await axios.head('https://www.google.com', {
+                proxy: {
+                    host: proxyUrl.split('://')[1].split(':')[0],
+                    port: parseInt(proxyUrl.split(':')[2])
+                },
+                timeout: 5000
+            });
+            return true;
         } catch (e) {
-            return null;
+            return false;
         }
     }
 }

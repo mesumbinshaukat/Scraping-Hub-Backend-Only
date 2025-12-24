@@ -3,12 +3,12 @@ import { getDb, query } from '../utils/db.js';
 export const statsController = async (req, res, next) => {
     try {
         const { period } = req.params;
-        
+
         let timeModifier;
-        switch(period) {
+        switch (period) {
             case 'daily': timeModifier = '-1 day'; break;
             case 'weekly': timeModifier = '-7 days'; break;
-            case 'monthly': 
+            case 'monthly':
             default: timeModifier = '-1 month'; break;
         }
 
@@ -28,7 +28,7 @@ export const statsController = async (req, res, next) => {
         res.json({
             period,
             data: result,
-            note: "This API shows data for the last 6 months only."
+            note: "Data is persisted for 6 months in Vercel KV."
         });
 
     } catch (err) {
@@ -38,7 +38,7 @@ export const statsController = async (req, res, next) => {
 
 export const logRequest = async (req, res, next) => {
     const start = Date.now();
-    
+
     res.on('finish', async () => {
         const duration = Date.now() - start;
         const status = res.statusCode;
@@ -54,7 +54,7 @@ export const logRequest = async (req, res, next) => {
             console.error("Failed to log request", e);
         }
     });
-    
+
     next();
 };
 
@@ -67,7 +67,7 @@ export const cleanupLogs = async (req, res, next) => {
     try {
         const sql = "DELETE FROM access_logs WHERE created_at < datetime('now', '-6 months')";
         await query(sql);
-        
+
         res.json({ message: 'Cleanup complete' });
     } catch (err) {
         next(err);

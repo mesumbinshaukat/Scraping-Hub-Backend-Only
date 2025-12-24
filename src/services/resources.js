@@ -79,11 +79,31 @@ const RESOURCES = {
     searx_oh64: { type: 'search', url: 'https://search.oh64.moe/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_oh64')).get() },
     searx_catgirl: { type: 'search', url: 'https://sx.catgirl.cloud/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_catgirl')).get() },
     searx_lunar: { type: 'search', url: 'https://searx.lunar.icu/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_lunar')).get() },
+    searx_amuse: { type: 'search', url: 'https://search.amuse.social/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_amuse')).get() },
+    searx_work: { type: 'search', url: 'https://searx.work/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_work')).get() },
+    searx_disroot: { type: 'search', url: 'https://search.disroot.org/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_disroot')).get() },
+    searx_privacy: { type: 'search', url: 'https://searx.privacy.ovh/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_privacy')).get() },
+    searx_tinfoil: { type: 'search', url: 'https://searx.tinfoil-hat.net/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_tinfoil')).get() },
+    searx_mx: { type: 'search', url: 'https://searx.mx/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_mx')).get() },
+    searx_es: { type: 'search', url: 'https://searx.es/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_es')).get() },
+    searx_be_alt: { type: 'search', url: 'https://searxng.be/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_be_alt')).get() },
+    searx_it: { type: 'search', url: 'https://searx.it/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_it')).get() },
+    searx_mpx: { type: 'search', url: 'https://searx.mpx.wtf/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_mpx')).get() },
+    searx_name: { type: 'search', url: 'https://search.name.sh/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_name')).get() },
+    searx_xyz: { type: 'search', url: 'https://search.xyz.pt/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_xyz')).get() },
+    searx_f: { type: 'search', url: 'https://searx.frt.sh/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_f')).get() },
+    searx_ninja: { type: 'search', url: 'https://search.ninja/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_ninja')).get() },
+    searx_rocks: { type: 'search', url: 'https://searx.rocks/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_rocks')).get() },
+    searx_si: { type: 'search', url: 'https://searx.si/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_si')).get() },
+    searx_work_2: { type: 'search', url: 'https://searx.work/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_work_2')).get() },
+    searx_p: { type: 'search', url: 'https://searx.p.project-insanity.org/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_p')).get() },
+    searx_d: { type: 'search', url: 'https://searx.dcre.one/search', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('h3').text(), $(el).find('.content').text(), 'searx_d')).get() },
 
     // === Indie / Alternative ===
     qwant_lite: { type: 'search', url: 'https://lite.qwant.com/', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('a').text(), null, 'qwant_lite')).get() },
     yacy_lab: { type: 'search', url: 'https://yacy.searchlab.eu/search', params: query => ({ query }), parser: $ => $('.yacysearch .result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('a').text(), null, 'yacy_lab')).get() },
     wiby: { type: 'search', url: 'https://wiby.me/', params: q => ({ q }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('a').text(), null, 'wiby')).get() },
+    marginalia: { type: 'search', url: 'https://search.marginalia.nu/search', params: query => ({ query, profile: 'blog' }), parser: $ => $('.result').map((i, el) => standardise($(el).find('a').attr('href'), $(el).find('a').text(), null, 'marginalia')).get() },
     duckduckgo_lite: { type: 'search', url: 'https://lite.duckduckgo.com/lite/', method: 'POST', params: q => ({ q }), parser: $ => $('.result-link').map((i, el) => standardise($(el).attr('href'), $(el).text(), null, 'duckduckgo_lite')).get() },
 
     // === RSS Feeds ===
@@ -95,7 +115,10 @@ const RESOURCES = {
     hackernews: { type: 'rss', url: 'https://hnrss.org/newest' },
     verge: { type: 'rss', url: 'https://www.theverge.com/rss/index.xml' },
     wired: { type: 'rss', url: 'https://www.wired.com/feed/rss' },
-    engadget: { type: 'rss', url: 'https://www.engadget.com/rss.xml' }
+    engadget: { type: 'rss', url: 'https://www.engadget.com/rss.xml' },
+    gizmodo: { type: 'rss', url: 'https://gizmodo.com/rss' },
+    reuters_tech: { type: 'rss', url: 'https://www.reutersagency.com/feed/?best-topics=technology&post_type=best' },
+    bbc_tech: { type: 'rss', url: 'http://feeds.bbci.co.uk/news/technology/rss.xml' }
 };
 
 class ResourceManager {

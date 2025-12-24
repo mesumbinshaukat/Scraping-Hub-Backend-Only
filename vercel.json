@@ -6,7 +6,7 @@
             "use": "@vercel/node",
             "config": {
                 "maxDuration": 60,
-                "memory": 1024
+                "memory": 3008
             }
         }
     ],
@@ -18,5 +18,11 @@
     ],
     "env": {
         "PLAYWRIGHT_BROWSERS_PATH": "0"
-    }
+    },
+    "crons": [
+        {
+            "path": "/health",
+            "schedule": "*/5 * * * *"
+        }
+    ]
 }
