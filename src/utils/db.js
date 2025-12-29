@@ -16,6 +16,11 @@ const getDataPath = (filename) => {
     return path.join(dataDir, filename);
 };
 
+// Fix for Upstash/Vercel ENV vars possibly getting double pointers or quotes
+if (process.env.KV_REST_API_URL) process.env.KV_REST_API_URL = process.env.KV_REST_API_URL.replace(/"/g, '');
+if (process.env.KV_REST_API_TOKEN) process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN.replace(/"/g, '');
+if (process.env.KV_URL) process.env.KV_URL = process.env.KV_URL.replace(/"/g, '');
+
 // Initialize DB
 export const initDb = async () => {
     if (process.env.KV_REST_API_TOKEN) {

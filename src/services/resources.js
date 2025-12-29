@@ -9,6 +9,13 @@ import { proxyManager } from '../utils/proxyManager.js';
 import cloudscraper from 'cloudscraper';
 import nlp from 'compromise';
 import { getCollection, saveCollection } from '../utils/db.js';
+import winston from 'winston';
+
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.json(),
+    transports: [new winston.transports.Console()],
+});
 
 const rssParser = new Parser({
     headers: { 'User-Agent': UserAgent.getRandom() }
