@@ -58,6 +58,7 @@ const fetchRawHtml = async (url) => {
 };
 
 import { MessageChannel } from 'worker_threads';
+import { VirtualConsole } from 'jsdom';
 
 const renderWithJSDOM = async (html, url, timeout) => {
     const resourceLoader = new ResourceLoader({
@@ -65,12 +66,25 @@ const renderWithJSDOM = async (html, url, timeout) => {
         strictSSL: false,
     });
 
+    // Suppress JSDOM CSS/Script errors
+    const virtualConsole = new VirtualConsole();
+    virtualConsole.on("jsdomError", (err) => {
+        if (err.message.includes('Could not parse CSS stylesheet')) return; // Ignore CSS errors
+        logger.debug({ message: 'JSDOM Error', url, error: err.message });
+    });
+    virtualConsole.on("error", (err) => {
+        logger.debug({ message: 'JSDOM Console Error', url, error: err.message });
+    });
+    // Optional: Forward logs if needed, but keep it clean
+    // virtualConsole.sendTo(console, { omitJSDOMErrors: true });
+
     const dom = new JSDOM(html, {
         url,
         runScripts: 'dangerously',
         resources: 'usable',
         pretendToBeVisual: true,
         resourceLoader,
+        virtualConsole, // Attach the custom console
         beforeParse(window) {
             // Polyfill MessageChannel for reCAPTCHA/external scripts
             window.MessageChannel = MessageChannel;
