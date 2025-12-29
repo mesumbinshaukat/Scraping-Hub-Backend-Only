@@ -9,13 +9,7 @@ import { proxyManager } from '../utils/proxyManager.js';
 import cloudscraper from 'cloudscraper';
 import nlp from 'compromise';
 import { getCollection, saveCollection } from '../utils/db.js';
-import winston from 'winston';
-
-const logger = winston.createLogger({
-    level: 'info',
-    format: winston.format.json(),
-    transports: [new winston.transports.Console()],
-});
+import { logger } from '../utils/logger.js';
 
 const rssParser = new Parser({
     headers: { 'User-Agent': UserAgent.getRandom() }
@@ -44,6 +38,7 @@ const RESOURCES = {
     duckduckgo_lite: { type: 'search', url: 'https://lite.duckduckgo.com/lite/', method: 'POST', params: q => ({ q }), parser: $ => $('.result-link').map((i, el) => standardise($(el).attr('href'), $(el).text(), null, 'duckduckgo_lite')).get() },
 
     // RSS
+    ign: { type: 'rss', url: 'https://ign.com/rss/v2/articles/feed' },
     ap_news: { type: 'rss', url: 'https://apnews.com/hub/ap-top-news/rss' },
     techcrunch: { type: 'rss', url: 'https://techcrunch.com/feed/' },
     hackernews: { type: 'rss', url: 'https://hnrss.org/newest' }
@@ -56,7 +51,7 @@ class ResourceManager {
 
     async init() {
         if (this.initialized) return;
-        console.log('Initializing resources...');
+        logger.info('Initializing resources...');
         this.initialized = true;
     }
 
