@@ -2,6 +2,11 @@ import { query } from '../utils/db.js';
 import crypto from 'crypto';
 
 export const authenticate = async (req, res, next) => {
+    // 1. Allow Vercel Cron (Secured by Vercel platform)
+    if (req.headers['x-vercel-cron']) {
+        return next();
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ error: 'Unauthorized: Missing or invalid Bearer token' });
@@ -9,16 +14,15 @@ export const authenticate = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
 
-    // Check against MASTER_KEY
-    if (process.env.MASTER_KEY && token === process.env.MASTER_KEY) {
-        return next();
-    }
+    // Check against MASTER_KEY or CRON_SECRET
+    if (process.env.MASTER_KEY && token === process.env.MASTER_KEY) return next();
+    if (process.env.CRON_SECRET && token === process.env.CRON_SECRET) return next();
 
     // Check against Database
     try {
         const inboundHash = crypto.createHash('sha256').update(token).digest('hex');
         const rows = await query('SELECT * FROM api_keys WHERE key_hash = ?', [inboundHash]);
-        
+
         if (rows.length > 0) {
             return next();
         }

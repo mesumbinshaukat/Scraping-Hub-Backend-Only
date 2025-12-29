@@ -21,8 +21,8 @@
     },
     "crons": [
         {
-            "path": "/health",
-            "schedule": "*/5 * * * *"
+            "path": "/api/cron/cleanup",
+            "schedule": "0 0 * * *"
         }
     ]
 }
