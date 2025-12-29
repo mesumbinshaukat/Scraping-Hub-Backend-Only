@@ -6,8 +6,9 @@ import NodeCache from 'node-cache';
 import promiseRetry from 'promise-retry';
 import robotsParser from 'robots-parser';
 import { proxyManager } from '../utils/proxyManager.js';
-import { getBrowser } from '../utils/browserManager.js';
 import cloudscraper from 'cloudscraper';
+import nlp from 'compromise';
+import { getCollection, saveCollection } from '../utils/db.js';
 
 const rssParser = new Parser({
     headers: { 'User-Agent': UserAgent.getRandom() }
@@ -57,25 +58,91 @@ class ResourceManager {
             return this.searchRSS(query);
         }
 
-        const engines = Object.keys(RESOURCES).filter(k => RESOURCES[k].type === type);
-        const allResults = [];
+        let allResults = [];
         const seenUrls = new Set();
-        const MAX_RESULTS = 50;
+        const engines = Object.keys(RESOURCES).filter(k => RESOURCES[k].type === type);
 
-        for (const key of engines) {
-            if (allResults.length >= MAX_RESULTS) break;
-            try {
-                const results = await this.fetchFromResource(key, query);
-                results.forEach(item => {
+        // Parallel fetch for first batch
+        const healthyEngines = engines
+            .sort((a, b) => (cache.get(`health_${b}`) || 0) - (cache.get(`health_${a}`) || 0))
+            .slice(0, 4);
+
+        const enginePromises = healthyEngines.map(key => this.fetchFromResource(key, query));
+        const settled = await Promise.allSettled(enginePromises);
+
+        settled.forEach((res, idx) => {
+            const key = healthyEngines[idx];
+            if (res.status === 'fulfilled') {
+                this.updateHealth(key, true);
+                res.value.forEach(item => {
                     if (item.url && !seenUrls.has(item.url)) {
                         seenUrls.add(item.url);
                         allResults.push(item);
                     }
                 });
-            } catch (e) { /* silent fail for individual resource */ }
+            } else {
+                this.updateHealth(key, false);
+            }
+        });
+
+        // NLP Expansion if results are low
+        if (allResults.length < 5) {
+            const variants = this.generateQueryVariants(query);
+            logger.info({ message: 'Low results, attempting NLP expansion', original: query, variants });
+
+            const variantPromises = variants.flatMap(v =>
+                healthyEngines.slice(0, 2).map(key => this.fetchFromResource(key, v))
+            );
+
+            const variantSettled = await Promise.allSettled(variantPromises);
+            variantSettled.forEach(res => {
+                if (res.status === 'fulfilled') {
+                    res.value.forEach(item => {
+                        if (item.url && !seenUrls.has(item.url)) {
+                            seenUrls.add(item.url);
+                            allResults.push(item);
+                        }
+                    });
+                }
+            });
         }
 
-        return allResults;
+        return allResults.slice(0, 50);
+    }
+
+    generateQueryVariants(query) {
+        const doc = nlp(query);
+        const variants = [];
+
+        // 1. Synonyms/Related (Simplified with compromise)
+        const nouns = doc.nouns().out('array');
+        if (nouns.length > 0) {
+            // Add plural/singular variants
+            variants.push(doc.clone().nouns().toPlural().text());
+            variants.push(doc.clone().nouns().toSingular().text());
+        }
+
+        const verbs = doc.verbs().out('array');
+        if (verbs.length > 0) {
+            variants.push(doc.clone().verbs().toPastTense().text());
+        }
+
+        return [...new Set(variants)].filter(v => v && v !== query).slice(0, 3);
+    }
+
+    async updateHealth(key, success) {
+        const healthData = await getCollection('resource_health');
+        const current = healthData.find(h => h.key === key) || { key, score: 50 };
+
+        current.score = success ? Math.min(current.score + 5, 100) : Math.max(current.score - 10, 0);
+        current.last_updated = new Date().toISOString();
+
+        const index = healthData.findIndex(h => h.key === key);
+        if (index > -1) healthData[index] = current;
+        else healthData.push(current);
+
+        await saveCollection('resource_health', healthData);
+        cache.set(`health_${key}`, current.score); // Still cache for speed
     }
 
     async fetchFromResource(key, query) {

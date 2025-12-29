@@ -18,8 +18,8 @@ const getDataPath = (filename) => {
 
 // Initialize DB
 export const initDb = async () => {
-    if (isVercel && process.env.KV_URL) {
-        console.log('Vercel KV detected, skipping local DB init');
+    if (process.env.KV_REST_API_TOKEN) {
+        console.log('Vercel KV credentials detected, skipping local DB init');
         return;
     }
 
@@ -33,8 +33,8 @@ export const initDb = async () => {
 };
 
 // Helper to interact with Vercel KV or Local JSON
-const getCollection = async (name) => {
-    if (isVercel && process.env.KV_URL) {
+export const getCollection = async (name) => {
+    if (process.env.KV_REST_API_TOKEN) {
         return (await kv.get(name)) || [];
     }
     try {
@@ -45,8 +45,8 @@ const getCollection = async (name) => {
     }
 };
 
-const saveCollection = async (name, data) => {
-    if (isVercel && process.env.KV_URL) {
+export const saveCollection = async (name, data) => {
+    if (process.env.KV_REST_API_TOKEN) {
         await kv.set(name, data);
         return;
     }

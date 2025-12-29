@@ -22,12 +22,19 @@ describe('API Endpoints', () => {
     });
 
     test('GET /api/scrape with valid URL', async () => {
-        const mockData = { title: 'Test' };
+        const mockData = { title: 'Test', mainContent: 'Content here', phase: 'static' };
         scraperService.scrape.mockResolvedValue(mockData);
 
         const res = await request(app).get('/api/scrape?url=http://example.com');
         expect(res.statusCode).toEqual(200);
+        // Scrape controller wraps data in data property of response body
+        // and also includes message/url. But my controller implementation:
+        // res.write('{"message": "Scraping in progress", "url": "' + url + '", "data": ');
+        // res.write(JSON.stringify(data));
+        // res.write('}');
+
         expect(res.body.data).toEqual(mockData);
+        expect(res.body.url).toBe('http://example.com');
     });
 
     test('GET /api/scrape with missing URL', async () => {

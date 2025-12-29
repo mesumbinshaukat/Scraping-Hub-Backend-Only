@@ -1,28 +1,28 @@
 {
     "version": 2,
     "functions": {
-        "api/index.js": {
-            "maxDuration": 300,
-            "memory": 2048
+        "api/*.js": {
+            "maxDuration": 10,
+            "memory": 1024
         }
     },
     "routes": [
         {
             "src": "/(.*)",
-            "dest": "api/index.js"
+            "dest": "src/app.js"
         }
     ],
     "env": {
-        "PLAYWRIGHT_BROWSERS_PATH": "0",
         "VERCEL": "1",
         "PROXY_ENABLED": "true",
         "MAX_RETRIES": "3",
-        "SCRAPE_DELAY": "2000"
+        "SCRAPE_DELAY": "2000",
+        "IGNORE_SSL_ERRORS": "false"
     },
     "crons": [
         {
             "path": "/health",
-            "schedule": "0 0 * * *"
+            "schedule": "*/5 * * * *"
         }
     ]
 }

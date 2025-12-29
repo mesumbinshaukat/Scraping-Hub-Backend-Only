@@ -14,21 +14,32 @@ export const scrapeController = async (req, res, next) => {
     }
 
     const { url } = value;
-    
 
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Transfer-Encoding', 'chunked');
 
     try {
-        const data = await scrapeQueue.add(() => scraperService.scrape(url));
-        res.json({
-            message: 'Scraping successful',
-            url: url,
-            data: data
-        });
+      // We write the "start" of the JSON
+      res.write('{"message": "Scraping in progress", "url": "' + url + '", "data": ');
+
+      const data = await scraperService.scrape(url);
+
+      // Write the data chunk
+      res.write(JSON.stringify(data));
+
+      // Write the "end" of the JSON
+      res.write('}');
+      res.end();
     } catch (scrapeError) {
+      // If we already started writing, we can't change status code
+      if (res.headersSent) {
+        res.write(', "error": "' + scrapeError.message + '"}');
+        res.end();
+      } else {
         next(scrapeError);
+      }
     }
-
-
   } catch (err) {
     next(err);
   }

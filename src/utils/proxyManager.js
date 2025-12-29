@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import winston from 'winston';
+import { getCollection, saveCollection } from './db.js';
 
 const logger = winston.createLogger({
     level: 'info',
@@ -18,7 +19,12 @@ class ProxyManager {
 
     async getProxies() {
         if (Date.now() - this.lastUpdateTime > this.updateInterval || this.proxies.length === 0) {
-            await this.refreshProxies();
+            const cached = await getCollection('proxies');
+            if (cached && cached.length > 0 && Date.now() - this.lastUpdateTime < this.updateInterval) {
+                this.proxies = cached;
+            } else {
+                await this.refreshProxies();
+            }
         }
         return this.proxies;
     }
@@ -30,7 +36,7 @@ class ProxyManager {
         try {
             const response = await axios.get('https://free-proxy-list.net/', { timeout: 10000 });
             const $ = cheerio.load(response.data);
-            const newList = [];
+            const candidates = [];
 
             $('.table-responsive tbody tr').each((i, row) => {
                 const cols = $(row).find('td');
@@ -39,24 +45,36 @@ class ProxyManager {
                 const https = $(cols[6]).text().trim() === 'yes';
 
                 if (ip && port && https) {
-                    newList.push(`http://${ip}:${port}`);
+                    candidates.push(`http://${ip}:${port}`);
                 }
             });
 
-            this.proxies = newList.slice(0, 50); // Limit to top 50
+            // Parallel validation
+            logger.info(`Validating ${candidates.length} candidate proxies...`);
+            const validationResults = await Promise.allSettled(
+                candidates.slice(0, 30).map(p => this.validateProxy(p))
+            );
+
+            this.proxies = candidates.slice(0, 30).filter((_, i) =>
+                validationResults[i].status === 'fulfilled' && validationResults[i].value === true
+            );
+
             this.lastUpdateTime = Date.now();
-            logger.info(`Found ${this.proxies.length} potential HTTPS proxies.`);
+            await saveCollection('proxies', this.proxies);
+            logger.info(`Found ${this.proxies.length} working HTTPS proxies.`);
         } catch (error) {
             logger.error('Failed to update proxies:', error.message);
         }
     }
 
     async getNextProxy() {
-        const list = await this.getProxies();
-        if (list.length === 0) return null;
+        if (this.proxies.length === 0) {
+            await this.getProxies();
+        }
+        if (this.proxies.length === 0) return null;
 
-        const proxy = list[this.currentIndex];
-        this.currentIndex = (this.currentIndex + 1) % list.length;
+        const proxy = this.proxies[this.currentIndex % this.proxies.length];
+        this.currentIndex++;
         return proxy;
     }
 

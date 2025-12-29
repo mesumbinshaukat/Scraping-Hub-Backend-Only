@@ -7,6 +7,7 @@ import { proxyManager } from '../../utils/proxyManager.js';
 import createDOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
 import iconv from 'iconv-lite';
+import https from 'https';
 
 const window = new JSDOM('').window;
 const dompurify = createDOMPurify(window);
@@ -30,7 +31,7 @@ const getRobotsTxt = async (url) => {
 /**
  * Core request maker with Cloudscraper/Proxy/Retry logic
  */
-const requestWithRetry = async (url, options = {}, attempt = 1) => {
+const requestWithRetry = async (url, options = {}, attempt = 1, forceProxy = false) => {
     try {
         const delay = Math.floor(Math.random() * SCRAPE_DELAY) + 500;
         await new Promise(r => setTimeout(r, delay));
@@ -43,23 +44,38 @@ const requestWithRetry = async (url, options = {}, attempt = 1) => {
             ...options.headers
         };
 
+        const ignoreSsl = process.env.IGNORE_SSL_ERRORS === 'true';
+        const httpsAgent = new https.Agent({ rejectUnauthorized: !ignoreSsl });
+
         const config = {
             url,
             method: options.method || 'GET',
             headers,
             timeout: 8000,
             responseType: 'arraybuffer',
+            httpsAgent,
+            strictSSL: !ignoreSsl // for cloudscraper/request
         };
 
         // Proxy Rotation
-        if (process.env.PROXY_ENABLED === 'true') {
+        if (process.env.PROXY_ENABLED === 'true' || forceProxy) {
             const proxy = await proxyManager.getNextProxy();
             if (proxy) {
                 const urlParsed = new URL(proxy);
+                config.proxy = proxy; // Cloudscraper likes the string
+                config.httpProxy = proxy;
+                // For axios config
                 config.proxy = {
                     host: urlParsed.hostname,
-                    port: parseInt(urlParsed.port)
+                    port: parseInt(urlParsed.port),
+                    protocol: urlParsed.protocol.replace(':', '')
                 };
+                if (urlParsed.username) {
+                    config.proxy.auth = {
+                        username: urlParsed.username,
+                        password: urlParsed.password
+                    };
+                }
             }
         }
 
@@ -68,12 +84,20 @@ const requestWithRetry = async (url, options = {}, attempt = 1) => {
             const csResponse = await cloudscraper({
                 ...config,
                 resolveWithFullResponse: true,
-                simple: true
+                simple: true,
+                agentOptions: ignoreSsl ? { rejectUnauthorized: false } : {}
             });
 
             const data = iconv.decode(Buffer.from(csResponse.body), 'utf-8');
             return { data, status: csResponse.statusCode };
         } catch (csError) {
+            // EPROTO errors often solved by rejecting unauthorized
+            if (csError.message?.includes('EPROTO') || csError.message?.includes('SSL')) {
+                console.warn(`SSL/EPROTO error detected for ${url}, retrying with insecure fallback...`);
+                config.httpsAgent = new https.Agent({ rejectUnauthorized: false });
+                config.strictSSL = false;
+            }
+
             // Priority 2: Standard Axios fallback if cloudscraper fails for non-antibot reasons
             if (csError.statusCode !== 403 && csError.statusCode !== 429) {
                 const axiosResponse = await axios(config);
@@ -85,10 +109,12 @@ const requestWithRetry = async (url, options = {}, attempt = 1) => {
 
     } catch (error) {
         const status = error.response?.status || error.statusCode;
-        if (attempt < MAX_RETRIES && ([403, 429, 503].includes(status) || error.code === 'ECONNABORTED')) {
-            const backoff = Math.pow(2, attempt) * 1000;
-            console.log(`Static phase retry ${attempt} for ${url} in ${backoff}ms...`);
-            return requestWithRetry(url, options, attempt + 1);
+        const isBlock = [403, 429, 503].includes(status) || error.message?.toLowerCase().includes('denied') || error.message?.toLowerCase().includes('blocked');
+
+        if (attempt < MAX_RETRIES && (isBlock || error.code === 'ECONNABORTED' || error.message?.includes('EPROTO'))) {
+            const backoff = Math.pow(attempt === 1 ? 0.5 : 2, attempt) * 1000;
+            console.log(`Static phase retry ${attempt} for ${url} in ${backoff}ms (ForceProxy: ${isBlock})...`);
+            return requestWithRetry(url, options, attempt + 1, isBlock);
         }
         throw error;
     }
@@ -111,7 +137,8 @@ export const staticPhase = async (url, options = {}) => {
 
         // 3. Block Detection in Content
         const pageText = $('body').text().toLowerCase();
-        if (pageText.includes('captcha') || pageText.includes('access denied') || pageText.includes('blocked')) {
+        const blockKeywords = ['captcha', 'access denied', 'blocked', 'please enable js', 'security check', 'not a robot', 'cloudflare', 'ddos protection'];
+        if (blockKeywords.some(k => pageText.includes(k))) {
             throw new Error('Anti-bot detected in static content');
         }
 
