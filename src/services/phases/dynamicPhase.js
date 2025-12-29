@@ -57,6 +57,8 @@ const fetchRawHtml = async (url) => {
     return iconv.decode(Buffer.from(response), 'utf-8');
 };
 
+import { MessageChannel } from 'worker_threads';
+
 const renderWithJSDOM = async (html, url, timeout) => {
     const resourceLoader = new ResourceLoader({
         proxy: process.env.PROXY_ENABLED === 'true' ? process.env.PROXY_URL : undefined,
@@ -68,7 +70,11 @@ const renderWithJSDOM = async (html, url, timeout) => {
         runScripts: 'dangerously',
         resources: 'usable',
         pretendToBeVisual: true,
-        resourceLoader
+        resourceLoader,
+        beforeParse(window) {
+            // Polyfill MessageChannel for reCAPTCHA/external scripts
+            window.MessageChannel = MessageChannel;
+        }
     });
 
     // Wait for scripts to execute (with timeout)
